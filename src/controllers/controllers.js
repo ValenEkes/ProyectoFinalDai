@@ -4,10 +4,18 @@ exports.getAllEvents = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
-    const result = await eventService.getEvents(page, limit);
-    res.json(result);
+
+    const filters = {
+      name: req.query.name || null,
+      startdate: req.query.startdate || null,
+      tag: req.query.tag || null
+    };
+
+    const result = await eventService.getEvents(page, limit, filters);
+    return res.json(result); // return evita que el código siga
   } catch (error) {
     console.error('Error al obtener eventos:', error);
-    res.status(500).json({ error: 'Error al obtener eventos' });
+    return res.status(500).json({ error: error.message || 'Error al obtener eventos' });
   }
 };
+
