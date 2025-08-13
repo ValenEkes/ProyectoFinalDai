@@ -2,69 +2,74 @@ const db = require('../config/config');
 
 exports.getPaginatedEvents = async (limit, offset) => {
   const query = `
-    SELECT 
-      e.id,
-      e.nombre,
-      e.descripcion,
-      e.fecha,
-      e.duracion_minutos,
-      e.precio,
-      e.inscripcion_activada,
-      e.maxima_asistencia,
-      json_build_object(
-        'id', u.id,
-        'nombre', u.primer_nombre,
-        'apellido', u.ultimo_nombre,
-        'email', u.username
-      ) AS usuario,
-      json_build_object(
-        'id', el.id,
-        'direccion', el.direccion,
-        'ciudad', el.nombre
-      ) AS ubicacion
-    FROM events e
-    JOIN users u ON e.id_creator_user = u.id
-    JOIN event_locations el ON e.id_evento_locacion = el.id
-    ORDER BY e.fecha
+    SELECT * FROM events
+    ORDER BY fecha
     LIMIT $1 OFFSET $2
   `;
-
   const result = await db.query(query, [limit, offset]);
   return result.rows;
 };
 
 exports.getPaginatedEventsWithFilters = async (limit, offset, filters) => {
-  let baseQuery = `
-    SELECT e.*, u.*, el.*, t.*
-    FROM events e
-    JOIN users u ON e.id_creator_user = u.id
-    JOIN event_locations el ON e.id_evento_locacion = el.id
-    LEFT JOIN event_tags et ON e.id = et.id_event
-    LEFT JOIN tags t ON et.id_tag = t.id
-    WHERE 1=1
-  `;
-
+  let baseQuery = `SELECT * FROM events WHERE 1=1`;
   const values = [];
   let paramIndex = 1;
 
   if (filters.name) {
-    baseQuery += ` AND LOWER(e.nombre) LIKE LOWER($${paramIndex++})`;
+    baseQuery += ` AND LOWER(nombre) LIKE LOWER($${paramIndex++})`;
     values.push(`%${filters.name}%`);
   }
-
   if (filters.startdate) {
-    baseQuery += ` AND e.fecha >= $${paramIndex++}`;
+    baseQuery += ` AND fecha >= $${paramIndex++}`;
     values.push(filters.startdate);
   }
 
-  if (filters.tag) {
-    baseQuery += ` AND LOWER(t.name) LIKE LOWER($${paramIndex++})`;
-    values.push(`%${filters.tag}%`);
-  }
-
-  baseQuery += ` ORDER BY e.fecha LIMIT $${paramIndex++} OFFSET $${paramIndex}`;
+  baseQuery += ` ORDER BY fecha LIMIT $${paramIndex++} OFFSET $${paramIndex}`;
   values.push(limit, offset);
 
   const result = await db.query(baseQuery, values);
   return result.rows;
+};
+
+exports.insertEvent = async (data) => {
+  const query = `
+    INSERT INTO events (nombre, descripcion, maxima_asistencia, max_capacity, precio, duracion_minutos, id_evento_locacion, fecha, id_creator_user)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+    RETURNING *;
+  `;
+  const values = [
+    data.name, data.description, data.max_assistance, data.max_capacity,
+    data.price, data.duration_in_minutes, data.id_event_location, data.date, data.id_creator_user
+  ];
+  const result = await db.query(query, values);
+  return result.rows[0];
+};
+
+exports.getEventById = async (id) => {
+  const result = await db.query(`SELECT * FROM events WHERE id = $1`, [id]);
+  return result.rows[0];
+};
+
+exports.updateEvent = async (id, data) => {
+  const query = `
+    UPDATE events
+    SET nombre=$1, descripcion=$2, maxima_asistencia=$3, max_capacity=$4, precio=$5, duracion_minutos=$6, id_evento_locacion=$7, fecha=$8
+    WHERE id=$9
+    RETURNING *;
+  `;
+  const values = [
+    data.name, data.description, data.max_assistance, data.max_capacity,
+    data.price, data.duration_in_minutes, data.id_event_location, data.date, id
+  ];
+  const result = await db.query(query, values);
+  return result.rows[0];
+};
+
+exports.deleteEvent = async (id) => {
+  await db.query(`DELETE FROM events WHERE id = $1`, [id]);
+};
+
+exports.eventHasRegistrations = async (id) => {
+  const result = await db.query(`SELECT COUNT(*) FROM event_registrations WHERE id_event = $1`, [id]);
+  return parseInt(result.rows[0].count) > 0;
 };
