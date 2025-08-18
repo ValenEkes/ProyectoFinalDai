@@ -1,7 +1,7 @@
-// src/servicios/servicios.js
+
 const db = require('../config/config');
 
-// Obtener lista de eventos con paginación y filtros
+
 exports.getEvents = async (page, limit, filters) => {
   const offset = (page - 1) * limit;
   const values = [];
@@ -9,15 +9,11 @@ exports.getEvents = async (page, limit, filters) => {
 
   if (filters.name) {
     values.push(`%${filters.name}%`);
-    where.push(`name ILIKE $${values.length}`);
+    where.push(`nombre ILIKE $${values.length}`);
   }
   if (filters.startdate) {
     values.push(filters.startdate);
-    where.push(`date >= $${values.length}`);
-  }
-  if (filters.tag) {
-    values.push(`%${filters.tag}%`);
-    where.push(`tags ILIKE $${values.length}`);
+    where.push(`fecha >= $${values.length}`);
   }
 
   const whereClause = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
@@ -26,7 +22,7 @@ exports.getEvents = async (page, limit, filters) => {
     SELECT *
     FROM events
     ${whereClause}
-    ORDER BY date ASC
+    ORDER BY fecha ASC
     LIMIT ${limit} OFFSET ${offset}
   `;
 
@@ -34,42 +30,42 @@ exports.getEvents = async (page, limit, filters) => {
   return { page, limit, total: result.rows.length, events: result.rows };
 };
 
-// Obtener un evento por ID
+
 exports.getEventById = async (id) => {
   const result = await db.query('SELECT * FROM events WHERE id = $1', [id]);
   return result.rows[0] || null;
 };
 
-// Crear un evento
+
 exports.createEvent = async (eventData) => {
   const {
-    name,
-    description,
-    max_assistance,
-    max_capacity,
-    price,
-    duration_in_minutes,
-    id_event_location,
-    date,
+    nombre,
+    descripcion,
+    maxima_asistencia,
+    maxima_capacidad,
+    precio,
+    duracion_minutos,
+    id_evento_locacion,
+    fecha,
     id_creator_user
   } = eventData;
 
   const query = `
     INSERT INTO events
-    (name, description, max_assistance, max_capacity, price, duration_in_minutes, id_event_location, date, id_creator_user)
+    (nombre, descripcion, maxima_asistencia, maxima_capacidad, precio, duracion_minutos, id_evento_locacion, fecha, id_creator_user)
     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
     RETURNING *
   `;
 
   const values = [
-    name,
-    description,
-    max_assistance,
-    max_capacity,
-    price,
-    duration_in_minutes,
-    id_event_location,
-    date,
+    nombre,
+    descripcion,
+    maxima_asistencia,
+    maxima_capacidad,
+    precio,
+    duracion_minutos,
+    id_evento_locacion,
+    fecha,
     id_creator_user
   ];
 
@@ -77,36 +73,36 @@ exports.createEvent = async (eventData) => {
   return result.rows[0];
 };
 
-// Actualizar un evento
+
 exports.updateEvent = async (id, eventData) => {
   const {
-    name,
-    description,
-    max_assistance,
-    max_capacity,
-    price,
-    duration_in_minutes,
-    id_event_location,
-    date
+    nombre,
+    descripcion,
+    maxima_asistencia,
+    maxima_capacidad,
+    precio,
+    duracion_minutos,
+    id_evento_locacion,
+    fecha
   } = eventData;
 
   const query = `
     UPDATE events
-    SET name=$1, description=$2, max_assistance=$3, max_capacity=$4,
-        price=$5, duration_in_minutes=$6, id_event_location=$7, date=$8
+    SET nombre=$1, descripcion=$2, maxima_asistencia=$3, maxima_capacidad=$4,
+        precio=$5, duracion_minutos=$6, id_evento_locacion=$7, fecha=$8
     WHERE id=$9
     RETURNING *
   `;
 
   const values = [
-    name,
-    description,
-    max_assistance,
-    max_capacity,
-    price,
-    duration_in_minutes,
-    id_event_location,
-    date,
+    nombre,
+    descripcion,
+    maxima_asistencia,
+    maxima_capacidad,
+    precio,
+    duracion_minutos,
+    id_evento_locacion,
+    fecha,
     id
   ];
 
@@ -114,16 +110,16 @@ exports.updateEvent = async (id, eventData) => {
   return result.rows[0];
 };
 
-// Verificar si un evento tiene registros en event_registrations
+
 exports.checkEventRegistrations = async (eventId) => {
   const result = await db.query(
-    'SELECT COUNT(*) FROM event_registrations WHERE id_event = $1',
+    'SELECT COUNT(*) FROM event_enrollments WHERE id_event = $1',
     [eventId]
   );
   return parseInt(result.rows[0].count) > 0;
 };
 
-// Eliminar un evento
+
 exports.deleteEvent = async (id) => {
   await db.query('DELETE FROM events WHERE id = $1', [id]);
 };

@@ -6,7 +6,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const db = require('./src/config/config');
 
-// Importamos rutas de eventos
+
 const eventRoutes = require('./src/routes/eventRoutes');
 
 const app = express();
@@ -15,7 +15,7 @@ const port = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// Ruta raíz de prueba
+
 app.get('/', (req, res) => {
   res.send('Bienvenido desde el backend');
 });
@@ -80,7 +80,7 @@ app.post(
 
       const user = userResult.rows[0];
 
-      // Comparar usando el nombre exacto de la columna
+      
       const isValid = await bcrypt.compare(contraseña, user['contraseña']);
       if (!isValid) {
         return res.status(401).json({ success: false, message: 'Usuario o clave inválida.', token: '' });
