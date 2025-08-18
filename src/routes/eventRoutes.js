@@ -16,4 +16,8 @@ router.delete('/:id', authMiddleware, eventController.deleteEvent);
 
 router.get('/', eventController.getAllEvents);
 
+router.post('/:id/enrollment',authMiddleware,eventController.enrollUser)
+
+router.delete('/:id/enrollment',authMiddleware,eventController.unenrollUser)
+
 module.exports = router;

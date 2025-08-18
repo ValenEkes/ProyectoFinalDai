@@ -1,6 +1,6 @@
 
 const eventService = require('../servicios/servicios');
-
+const db= require('../config/config')
 
 exports.getAllEvents = async (req, res) => {
   try {
@@ -162,6 +162,102 @@ exports.deleteEvent = async (req, res) => {
     return res.status(200).json({ message: 'Evento eliminado correctamente' });
   } catch (error) {
     console.error('Error al eliminar evento:', error);
+    return res.status(500).json({ error: 'Error interno del servidor' });
+  }
+};
+
+exports.enrollUser = async (req, res) => {
+  const eventId = req.params.id;
+  const userId = req.user.id; // viene del middleware
+  const now = new Date();
+
+  try {
+    // 1. Verificar que el evento exista
+    const eventResult = await db.query('SELECT * FROM events WHERE id = $1', [eventId]);
+    if (eventResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Evento no encontrado' });
+    }
+    const event = eventResult.rows[0];
+
+    // 2. Validaciones
+    if (!event.enabled_for_enrollment) {
+      return res.status(400).json({ error: 'El evento no está habilitado para inscripción' });
+    }
+
+    const startDate = new Date(event.start_date);
+    if (startDate <= now) {
+      return res.status(400).json({ error: 'No se puede inscribir a un evento pasado o que inicia hoy' });
+    }
+
+    // 3. Verificar capacidad máxima
+    const countResult = await db.query(
+      'SELECT COUNT(*) FROM enrollments WHERE event_id = $1',
+      [eventId]
+    );
+    if (parseInt(countResult.rows[0].count) >= event.max_assistance) {
+      return res.status(400).json({ error: 'Capacidad máxima alcanzada' });
+    }
+
+    // 4. Verificar que el usuario no esté ya inscripto
+    const userResult = await db.query(
+      'SELECT * FROM enrollments WHERE event_id = $1 AND user_id = $2',
+      [eventId, userId]
+    );
+    if (userResult.rows.length > 0) {
+      return res.status(400).json({ error: 'El usuario ya está inscripto en el evento' });
+    }
+
+    // 5. Insertar inscripción
+    await db.query(
+      'INSERT INTO enrollments (event_id, user_id, registration_date_time) VALUES ($1, $2, $3)',
+      [eventId, userId, now]
+    );
+
+    return res.status(201).json({ message: 'Usuario inscripto correctamente' });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Error interno del servidor' });
+  }
+};
+
+// Cancelar inscripción de un usuario
+exports.unenrollUser = async (req, res) => {
+  const eventId = req.params.id;
+  const userId = req.user.id;
+  const now = new Date();
+
+  try {
+    // 1. Verificar que el evento exista
+    const eventResult = await db.query('SELECT * FROM events WHERE id = $1', [eventId]);
+    if (eventResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Evento no encontrado' });
+    }
+    const event = eventResult.rows[0];
+
+    // 2. Validar que el evento aún no pasó
+    const startDate = new Date(event.start_date);
+    if (startDate <= now) {
+      return res.status(400).json({ error: 'No se puede desinscribir de un evento pasado o que inicia hoy' });
+    }
+
+    // 3. Verificar si el usuario está inscripto
+    const enrollmentResult = await db.query(
+      'SELECT * FROM enrollments WHERE event_id = $1 AND user_id = $2',
+      [eventId, userId]
+    );
+    if (enrollmentResult.rows.length === 0) {
+      return res.status(400).json({ error: 'El usuario no está inscripto en el evento' });
+    }
+
+    // 4. Eliminar inscripción
+    await db.query(
+      'DELETE FROM enrollments WHERE event_id = $1 AND user_id = $2',
+      [eventId, userId]
+    );
+
+    return res.status(200).json({ message: 'Usuario desinscripto correctamente' });
+  } catch (error) {
+    console.error(error);
     return res.status(500).json({ error: 'Error interno del servidor' });
   }
 };
