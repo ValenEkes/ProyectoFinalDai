@@ -5,28 +5,32 @@ const { body, validationResult } = require('express-validator');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const db = require('./src/config/config');
-
-
+const authRoutes = require('./src/routes/authRoutes');
 const eventRoutes = require('./src/routes/eventRoutes');
 
 const app = express();
 const port = process.env.PORT || 3000;
 
+// Middleware
 app.use(cors());
 app.use(express.json());
 
+// Rutas
+app.use('/api/auth', authRoutes);
+app.use('/api/event', eventRoutes);
 
+// Ruta pública
 app.get('/', (req, res) => {
   res.send('Bienvenido desde el backend');
 });
 
-/* ================== AUTH ================== */
+/* ================== REGISTER MANUAL ================== */
 app.post(
   '/api/user/register',
   [
     body('primer_nombre').isLength({ min: 3 }).withMessage('El campo primer_nombre debe tener al menos 3 letras'),
     body('ultimo_nombre').isLength({ min: 3 }).withMessage('El campo ultimo_nombre debe tener al menos 3 letras'),
-    body('username').isEmail().withMessage('El email es invalido'),
+    body('username').isLength({ min: 3 }).withMessage('El username es requerido'),
     body('contraseña').isLength({ min: 3 }).withMessage('La contraseña debe tener al menos 3 letras'),
   ],
   async (req, res) => {
@@ -45,6 +49,7 @@ app.post(
 
       const hashedPassword = await bcrypt.hash(contraseña, 10);
 
+      // INSERT considerando que la columna se llama "contraseña" con comillas
       await db.query(
         'INSERT INTO users (primer_nombre, ultimo_nombre, username, "contraseña") VALUES ($1, $2, $3, $4)',
         [primer_nombre, ultimo_nombre, username, hashedPassword]
@@ -52,16 +57,17 @@ app.post(
 
       return res.status(201).json({ success: true, message: 'Usuario creado correctamente', token: '' });
     } catch (err) {
-      console.error('REGISTER ERROR:', err.code, err.message, err.detail);
+      console.error('REGISTER ERROR:', err);
       return res.status(500).json({ success: false, message: 'Error del servidor', token: '' });
     }
   }
 );
 
+/* ================== LOGIN MANUAL ================== */
 app.post(
   '/api/user/login',
   [
-    body('username').isEmail().withMessage('El email es invalido'),
+    body('username').isLength({ min: 3 }).withMessage('El username es requerido'),
     body('contraseña').exists().withMessage('La contraseña es requerida'),
   ],
   async (req, res) => {
@@ -80,7 +86,6 @@ app.post(
 
       const user = userResult.rows[0];
 
-      
       const isValid = await bcrypt.compare(contraseña, user['contraseña']);
       if (!isValid) {
         return res.status(401).json({ success: false, message: 'Usuario o clave inválida.', token: '' });
@@ -94,14 +99,11 @@ app.post(
 
       return res.status(200).json({ success: true, message: '', token });
     } catch (err) {
-      console.error('LOGIN ERROR:', err.code, err.message, err.detail);
+      console.error('LOGIN ERROR:', err);
       return res.status(500).json({ success: false, message: 'Error del servidor', token: '' });
     }
   }
 );
-
-/* ================== EVENTOS ================== */
-app.use('/api/event', eventRoutes);
 
 /* ================== CONEXIÓN ================== */
 db.query('SELECT NOW()')
