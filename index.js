@@ -7,6 +7,8 @@ const jwt = require('jsonwebtoken');
 const db = require('./src/config/config');
 const authRoutes = require('./src/routes/authRoutes');
 const eventRoutes = require('./src/routes/eventRoutes');
+const eventLocationRoutes = require('./routes/eventLocationRoutes');
+
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -18,6 +20,7 @@ app.use(express.json());
 // Rutas
 app.use('/api/auth', authRoutes);
 app.use('/api/event', eventRoutes);
+app.use('/api/event-location', eventLocationRoutes);
 
 // Ruta pública
 app.get('/', (req, res) => {
@@ -109,6 +112,7 @@ app.post(
 db.query('SELECT NOW()')
   .then(() => console.log('Conexión exitosa a PostgreSQL'))
   .catch((err) => console.error('Error de conexión a PostgreSQL:', err));
+
 
 app.listen(port, () => {
   console.log(`Servidor escuchando en http://localhost:${port}`);

@@ -134,3 +134,110 @@ exports.unenrollUser = async (req, res) => {
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 };
+// Obtener todos los event-locations (paginado)
+exports.getAllLocations = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { page = 1, limit = 10 } = req.query;
+
+    const offset = (page - 1) * limit;
+
+    const result = await db.query(
+      'SELECT * FROM event_locations WHERE user_id = $1 LIMIT $2 OFFSET $3',
+      [userId, limit, offset]
+    );
+
+    res.status(200).json({
+      success: true,
+      data: result.rows
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: 'Error del servidor' });
+  }
+};
+
+// Obtener un event-location por ID
+exports.getLocationById = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { id } = req.params;
+
+    const result = await db.query(
+      'SELECT * FROM event_locations WHERE id = $1 AND user_id = $2',
+      [id, userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Ubicación no encontrada' });
+    }
+
+    res.status(200).json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: 'Error del servidor' });
+  }
+};
+
+// Crear un event-location
+exports.createLocation = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { name, address } = req.body;
+
+    const result = await db.query(
+      'INSERT INTO event_locations (name, address, user_id) VALUES ($1, $2, $3) RETURNING *',
+      [name, address, userId]
+    );
+
+    res.status(201).json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: 'Error del servidor' });
+  }
+};
+
+// Actualizar un event-location
+exports.updateLocation = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { id } = req.params;
+    const { name, address } = req.body;
+
+    const result = await db.query(
+      'UPDATE event_locations SET name = $1, address = $2 WHERE id = $3 AND user_id = $4 RETURNING *',
+      [name, address, id, userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Ubicación no encontrada' });
+    }
+
+    res.status(200).json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: 'Error del servidor' });
+  }
+};
+
+// Eliminar un event-location
+exports.removeLocation = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { id } = req.params;
+
+    const result = await db.query(
+      'DELETE FROM event_locations WHERE id = $1 AND user_id = $2 RETURNING *',
+      [id, userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Ubicación no encontrada' });
+    }
+
+    res.status(200).json({ success: true, message: 'Ubicación eliminada' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: 'Error del servidor' });
+  }
+};
