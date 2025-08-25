@@ -7,6 +7,7 @@ const jwt = require('jsonwebtoken');
 const db = require('./src/config/config');
 const authRoutes = require('./src/routes/authRoutes');
 const eventRoutes = require('./src/routes/eventRoutes');
+const authMiddleware = require('./src/middlewares/authMiddleware');  // Agregamos el middleware de autenticación
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -24,7 +25,7 @@ app.get('/', (req, res) => {
   res.send('Bienvenido desde el backend');
 });
 
-/* ================== REGISTER MANUAL ================== */
+// ================== REGISTER MANUAL ==================
 app.post(
   '/api/user/register',
   [
@@ -63,7 +64,7 @@ app.post(
   }
 );
 
-/* ================== LOGIN MANUAL ================== */
+// ================== LOGIN MANUAL ==================
 app.post(
   '/api/user/login',
   [
@@ -105,7 +106,31 @@ app.post(
   }
 );
 
-/* ================== CONEXIÓN ================== */
+// ================== DELETE USER (Borrar Usuario) ==================
+app.delete('/api/user/delete', authMiddleware, async (req, res) => {
+  const userId = req.user.id;  // El ID del usuario proviene del token
+
+  try {
+    // Verificar si el usuario existe
+    const userResult = await db.query('SELECT * FROM users WHERE id = $1', [userId]);
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
+    }
+
+    // Eliminar las inscripciones del usuario en eventos (si hay alguna)
+    await db.query('DELETE FROM event_enrollments WHERE user_id = $1', [userId]);
+
+    // Eliminar el usuario de la tabla "users"
+    await db.query('DELETE FROM users WHERE id = $1', [userId]);
+
+    return res.status(200).json({ success: true, message: 'Usuario eliminado correctamente' });
+  } catch (err) {
+    console.error('Error al eliminar usuario:', err);
+    return res.status(500).json({ success: false, message: 'Error del servidor' });
+  }
+});
+
+// ================== CONEXIÓN ==================
 db.query('SELECT NOW()')
   .then(() => console.log('Conexión exitosa a PostgreSQL'))
   .catch((err) => console.error('Error de conexión a PostgreSQL:', err));
