@@ -7,20 +7,52 @@ const jwt = require('jsonwebtoken');
 const db = require('./src/config/config');
 const authRoutes = require('./src/routes/authRoutes');
 const eventRoutes = require('./src/routes/eventRoutes');
-const eventLocationRoutes = require('./src/routes/eventLocationRoutes'); // Nuevo import
-const authMiddleware = require('./src/middlewares/authMiddleware');
 
+// Inicializar app
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Middleware
+// Middlewares base
 app.use(cors());
 app.use(express.json());
 
-// Rutas
+// ================== Auth Middleware ==================
+function authMiddleware(req, res, next) {
+  const authHeader = req.headers.authorization || '';
+  const [scheme, token] = authHeader.split(' ');
+  if (scheme !== 'Bearer' || !token) {
+    return res.status(401).json({ success: false, message: 'Token no enviado' });
+  }
+  try {
+    const payload = jwt.verify(token, process.env.JWT_SECRET || 'secretkey');
+    req.user = {
+      id: payload.id,
+      primer_nombre: payload.primer_nombre,
+      ultimo_nombre: payload.ultimo_nombre,
+    };
+    return next();
+  } catch (e) {
+    return res.status(401).json({ success: false, message: 'Token inválido o expirado' });
+  }
+}
+
+// ================== Rutas ==================
+const authRoutes = require('./src/routes/authRoutes');
+const eventRoutes = require('./src/routes/eventRoutes');
+const eventEnrollmentRoutes = require('./src/routes/eventEnrollmentRoutes');
+
+let eventLocationRoutes = null;
+try {
+  eventLocationRoutes = require('./src/routes/eventLocationRoutes');
+} catch (err) {
+  console.warn('[WARN] No se encontró ./src/routes/eventLocationRoutes. Se omite /api/event-location.');
+}
+
+// Montar rutas
 app.use('/api/auth', authRoutes);
-app.use('/api/event', eventRoutes); 
-app.use('/api/event-location', eventLocationRoutes); 
+app.use('/api/event', eventRoutes);
+app.use('/api/event-location', eventLocationRoutes);
+
 // Ruta pública
 app.get('/', (req, res) => {
   res.send('Bienvenido desde el backend');
@@ -50,8 +82,6 @@ app.post(
       }
 
       const hashedPassword = await bcrypt.hash(contraseña, 10);
-
-      // INSERT considerando que la columna se llama "contraseña" con comillas
       await db.query(
         'INSERT INTO users (primer_nombre, ultimo_nombre, username, "contraseña") VALUES ($1, $2, $3, $4)',
         [primer_nombre, ultimo_nombre, username, hashedPassword]
@@ -87,7 +117,6 @@ app.post(
       }
 
       const user = userResult.rows[0];
-
       const isValid = await bcrypt.compare(contraseña, user['contraseña']);
       if (!isValid) {
         return res.status(401).json({ success: false, message: 'Usuario o clave inválida.', token: '' });
@@ -106,8 +135,10 @@ app.post(
     }
   }
 );
+
+// ================== DELETE USER (Borrar Usuario) ==================
 app.delete('/api/user/delete', authMiddleware, async (req, res) => {
-  const userId = req.user.id;  // ID del usuario proviene del token
+  const userId = req.user.id;  // El ID del usuario proviene del token
 
   try {
     // Verificar si el usuario existe
@@ -117,9 +148,9 @@ app.delete('/api/user/delete', authMiddleware, async (req, res) => {
     }
 
     // Eliminar las inscripciones del usuario en eventos (si hay alguna)
-    await db.query('DELETE FROM enrollments WHERE id_creator_user = $1', [userId]);
+    await db.query('DELETE FROM event_enrollments WHERE user_id = $1', [userId]);
 
-    // Eliminar el usuario
+    // Eliminar el usuario de la tabla "users"
     await db.query('DELETE FROM users WHERE id = $1', [userId]);
 
     return res.status(200).json({ success: true, message: 'Usuario eliminado correctamente' });
@@ -134,7 +165,7 @@ db.query('SELECT NOW()')
   .then(() => console.log('Conexión exitosa a PostgreSQL'))
   .catch((err) => console.error('Error de conexión a PostgreSQL:', err));
 
-
+// ================== LEVANTAR SERVIDOR ==================
 app.listen(port, () => {
   console.log(`Servidor escuchando en http://localhost:${port}`);
 });
