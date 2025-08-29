@@ -20,27 +20,68 @@ exports.createEvent = async (req, res) => {
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 };
-
 // Actualizar evento
 exports.updateEvent = async (req, res) => {
   try {
-    const { id, title, description, start_date, max_assistance, enabled_for_enrollment } = req.body;
-    if (!id) return res.status(400).json({ error: 'ID del evento requerido' });
+      // Obtener el ID de los parámetros de la URL
+      const eventId = req.params.id; 
+      
+      // Obtener los demás datos del cuerpo de la solicitud
+      const { title, description, start_date, max_assistance, enabled_for_enrollment } = req.body;
+      
+      // La validación del ID es correcta, pero el código original ya la maneja.
+      // if (!eventId) {
+      //     return res.status(400).json({ error: 'ID del evento requerido' });
+      // }
 
-    const result = await db.query(
-      'UPDATE events SET title=$1, description=$2, start_date=$3, max_assistance=$4, enabled_for_enrollment=$5 WHERE id=$6 RETURNING *',
-      [title, description, start_date, max_assistance, enabled_for_enrollment, id]
-    );
+      // Prepara la consulta para actualizar solo los campos que se envían
+      const updates = [];
+      const values = [];
+      let paramIndex = 1;
 
-    if (result.rows.length === 0) return res.status(404).json({ error: 'Evento no encontrado' });
+      if (title !== undefined) {
+          updates.push(`title = $${paramIndex++}`);
+          values.push(title);
+      }
+      if (description !== undefined) {
+          updates.push(`description = $${paramIndex++}`);
+          values.push(description);
+      }
+      if (start_date !== undefined) {
+          updates.push(`start_date = $${paramIndex++}`);
+          values.push(start_date);
+      }
+      if (max_assistance !== undefined) {
+          updates.push(`max_assistance = $${paramIndex++}`);
+          values.push(max_assistance);
+      }
+      if (enabled_for_enrollment !== undefined) {
+          updates.push(`enabled_for_enrollment = $${paramIndex++}`);
+          values.push(enabled_for_enrollment);
+      }
 
-    res.json({ message: 'Evento actualizado correctamente', event: result.rows[0] });
+      // Si no hay campos para actualizar, devuelve un error
+      if (updates.length === 0) {
+          return res.status(400).json({ error: 'No se encontraron campos para actualizar' });
+      }
+
+      values.push(eventId); // El último valor es el ID del evento
+
+      const result = await db.query(
+          `UPDATE events SET ${updates.join(', ')} WHERE id=$${paramIndex} RETURNING *`,
+          values
+      );
+
+      if (result.rows.length === 0) {
+          return res.status(404).json({ error: 'Evento no encontrado' });
+      }
+  
+      res.json({ message: 'Evento actualizado correctamente', event: result.rows[0] });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Error interno del servidor' });
+      console.error(error);
+      res.status(500).json({ error: 'Error interno del servidor' });
   }
 };
-
 // Eliminar evento
 exports.deleteEvent = async (req, res) => {
   try {
@@ -92,11 +133,11 @@ exports.enrollUser = async (req, res) => {
       return res.status(400).json({ error: 'Capacidad máxima alcanzada' });
     }
 
-    const userResult = await db.query('SELECT * FROM enrollments WHERE event_id=$1 AND user_id=$2', [eventId, userId]);
+    const userResult = await db.query('SELECT * FROM enrollments WHERE event_id=$1 AND id_creator_user=$2', [eventId, userId]);
     if (userResult.rows.length > 0) return res.status(400).json({ error: 'El usuario ya está inscripto en el evento' });
 
     await db.query(
-      'INSERT INTO enrollments (event_id, user_id, registration_date_time) VALUES ($1, $2, $3)',
+      'INSERT INTO enrollments (event_id, id_creator_user, registration_date_time) VALUES ($1, $2, $3)',
       [eventId, userId, now]
     );
 
@@ -123,10 +164,10 @@ exports.unenrollUser = async (req, res) => {
       return res.status(400).json({ error: 'No se puede desinscribir de un evento pasado o que inicia hoy' });
     }
 
-    const enrollmentResult = await db.query('SELECT * FROM enrollments WHERE event_id=$1 AND user_id=$2', [eventId, userId]);
+    const enrollmentResult = await db.query('SELECT * FROM enrollments WHERE event_id=$1 AND id_creator_user=$2', [eventId, userId]);
     if (enrollmentResult.rows.length === 0) return res.status(400).json({ error: 'El usuario no está inscripto en el evento' });
 
-    await db.query('DELETE FROM enrollments WHERE event_id=$1 AND user_id=$2', [eventId, userId]);
+    await db.query('DELETE FROM enrollments WHERE event_id=$1 AND id_creator_user=$2', [eventId, userId]);
 
     res.json({ message: 'Usuario desinscripto correctamente' });
   } catch (error) {
@@ -143,7 +184,7 @@ exports.getAllLocations = async (req, res) => {
     const offset = (page - 1) * limit;
 
     const result = await db.query(
-      'SELECT * FROM event_locations WHERE user_id = $1 LIMIT $2 OFFSET $3',
+      'SELECT * FROM event_locations WHERE id_creator_user = $1 LIMIT $2 OFFSET $3',
       [userId, limit, offset]
     );
 
@@ -164,7 +205,7 @@ exports.getLocationById = async (req, res) => {
     const { id } = req.params;
 
     const result = await db.query(
-      'SELECT * FROM event_locations WHERE id = $1 AND user_id = $2',
+      'SELECT * FROM event_locations WHERE id = $1 AND id_creator_user = $2',
       [id, userId]
     );
 
@@ -183,11 +224,11 @@ exports.getLocationById = async (req, res) => {
 exports.createLocation = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { name, address } = req.body;
+    const { nombre, direccion } = req.body;
 
     const result = await db.query(
-      'INSERT INTO event_locations (name, address, user_id) VALUES ($1, $2, $3) RETURNING *',
-      [name, address, userId]
+      'INSERT INTO event_locations (nombre, direccion, id_creator_user) VALUES ($1, $2, $3) RETURNING *',
+      [nombre, direccion, userId]
     );
 
     res.status(201).json({ success: true, data: result.rows[0] });
@@ -202,11 +243,11 @@ exports.updateLocation = async (req, res) => {
   try {
     const userId = req.user.id;
     const { id } = req.params;
-    const { name, address } = req.body;
+    const { nombre, direccion } = req.body;
 
     const result = await db.query(
-      'UPDATE event_locations SET name = $1, address = $2 WHERE id = $3 AND user_id = $4 RETURNING *',
-      [name, address, id, userId]
+      'UPDATE event_locations SET nombre = $1, direccion = $2 WHERE id = $3 AND id_creator_user = $4 RETURNING *',
+      [nombre, direccion, id, userId]
     );
 
     if (result.rows.length === 0) {
@@ -227,7 +268,7 @@ exports.removeLocation = async (req, res) => {
     const { id } = req.params;
 
     const result = await db.query(
-      'DELETE FROM event_locations WHERE id = $1 AND user_id = $2 RETURNING *',
+      'DELETE FROM event_locations WHERE id = $1 AND id_creator_user = $2 RETURNING *',
       [id, userId]
     );
 

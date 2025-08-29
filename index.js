@@ -7,6 +7,8 @@ const jwt = require('jsonwebtoken');
 const db = require('./src/config/config');
 const authRoutes = require('./src/routes/authRoutes');
 const eventRoutes = require('./src/routes/eventRoutes');
+const eventLocationRoutes = require('./src/routes/eventLocationRoutes'); // Nuevo import
+const authMiddleware = require('./src/middlewares/authMiddleware');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -17,9 +19,8 @@ app.use(express.json());
 
 // Rutas
 app.use('/api/auth', authRoutes);
-app.use('/api/event', eventRoutes);
-app.use('/api/event-location', eventLocationRoutes);
-
+app.use('/api/event', eventRoutes); 
+app.use('/api/event-location', eventLocationRoutes); 
 // Ruta pública
 app.get('/', (req, res) => {
   res.send('Bienvenido desde el backend');
@@ -105,10 +106,8 @@ app.post(
     }
   }
 );
-
-// ================== DELETE USER (Borrar Usuario) ==================
 app.delete('/api/user/delete', authMiddleware, async (req, res) => {
-  const userId = req.user.id;  // El ID del usuario proviene del token
+  const userId = req.user.id;  // ID del usuario proviene del token
 
   try {
     // Verificar si el usuario existe
@@ -118,9 +117,9 @@ app.delete('/api/user/delete', authMiddleware, async (req, res) => {
     }
 
     // Eliminar las inscripciones del usuario en eventos (si hay alguna)
-    await db.query('DELETE FROM event_enrollments WHERE user_id = $1', [userId]);
+    await db.query('DELETE FROM enrollments WHERE id_creator_user = $1', [userId]);
 
-    // Eliminar el usuario de la tabla "users"
+    // Eliminar el usuario
     await db.query('DELETE FROM users WHERE id = $1', [userId]);
 
     return res.status(200).json({ success: true, message: 'Usuario eliminado correctamente' });
