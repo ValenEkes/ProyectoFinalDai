@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../config/config');
-const authMiddleware = require('../middlewares/authMiddleware'); // usamos el mismo que ya tenés
+const authMiddleware = require('../middlewares/authMiddleware');
 
 // ================== POST: Inscribirse a un evento ==================
 router.post('/:id/enrollment', authMiddleware, async (req, res) => {
@@ -18,7 +18,10 @@ router.post('/:id/enrollment', authMiddleware, async (req, res) => {
 
     // 2. Validaciones según consigna
     const today = new Date();
-    const eventDate = new Date(event.start_date);
+    today.setHours(0, 0, 0, 0);
+
+    const eventDate = new Date(event.fecha); // asumimos que tu campo se llama 'fecha'
+    eventDate.setHours(0, 0, 0, 0);
 
     if (!event.enabled_for_enrollment) {
       return res.status(400).json({ success: false, message: 'El evento no está habilitado para inscripción' });
@@ -30,7 +33,7 @@ router.post('/:id/enrollment', authMiddleware, async (req, res) => {
     // capacidad máxima
     const countResult = await db.query('SELECT COUNT(*) FROM event_enrollments WHERE id_event = $1', [eventId]);
     const currentCount = parseInt(countResult.rows[0].count, 10);
-    if (currentCount >= event.max_assistance) {
+    if (currentCount >= event.maxima_asistencia) {
       return res.status(400).json({ success: false, message: 'El evento ya alcanzó la capacidad máxima' });
     }
 
@@ -45,7 +48,7 @@ router.post('/:id/enrollment', authMiddleware, async (req, res) => {
 
     // 3. Insertar inscripción
     await db.query(
-      'INSERT INTO event_enrollments (id_event, id_user, "Registro_tiempo") VALUES ($1, $2, NOW())',
+      'INSERT INTO event_enrollments (id_event, id_user, registro_tiempo) VALUES ($1, $2, NOW())',
       [eventId, userId]
     );
 
@@ -70,7 +73,10 @@ router.delete('/:id/enrollment', authMiddleware, async (req, res) => {
     const event = eventResult.rows[0];
 
     const today = new Date();
-    const eventDate = new Date(event.start_date);
+    today.setHours(0, 0, 0, 0);
+    const eventDate = new Date(event.fecha);
+    eventDate.setHours(0, 0, 0, 0);
+
     if (eventDate <= today) {
       return res.status(400).json({ success: false, message: 'No se puede cancelar inscripción a un evento pasado o que empieza hoy' });
     }

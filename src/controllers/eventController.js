@@ -15,19 +15,16 @@ exports.createEvent = async (req, res) => {
       fecha
     } = req.body;
 
-    // Validación de campos obligatorios
     if (!nombre || !id_evento_categoria || !id_evento_locacion || !duracion_minutos || !precio || !maxima_asistencia || !fecha) {
       return res.status(400).json({ error: 'Faltan campos obligatorios' });
     }
 
-    // Convertir fecha a string ISO para PostgreSQL
     const fechaJS = new Date(fecha);
     if (isNaN(fechaJS.getTime())) {
       return res.status(400).json({ error: 'Fecha inválida' });
     }
-    const fechaISO = fechaJS.toISOString(); // string plano
+    const fechaISO = fechaJS.toISOString();
 
-    // id_creator_user viene del token
     const id_creator_user = req.user.id;
 
     const result = await db.query(
@@ -73,6 +70,7 @@ exports.updateEvent = async (req, res) => {
     } = req.body;
 
     if (!id) return res.status(400).json({ error: 'ID del evento requerido' });
+
     if (!nombre || !id_evento_categoria || !id_evento_locacion || !duracion_minutos || !precio || !maxima_asistencia || !fecha) {
       return res.status(400).json({ error: 'Faltan campos obligatorios' });
     }
@@ -165,12 +163,12 @@ exports.enrollUser = async (req, res) => {
     const userResult = await db.query('SELECT * FROM event_enrollments WHERE id_event=$1 AND id_user=$2', [eventId, userId]);
     if (userResult.rows.length > 0) return res.status(400).json({ error: 'El usuario ya está inscripto en el evento' });
 
-    await db.query(
-      'INSERT INTO event_enrollments (id_event, id_user, registration_date_time) VALUES ($1, $2, $3)',
+    const enrollment = await db.query(
+      'INSERT INTO event_enrollments (id_event, id_user, registration_date_time) VALUES ($1, $2, $3) RETURNING *',
       [eventId, userId, now]
     );
 
-    res.status(201).json({ message: 'Usuario inscripto correctamente' });
+    res.status(201).json({ message: 'Usuario inscripto correctamente', enrollment: enrollment.rows[0] });
   } catch (error) {
     console.error('ENROLL USER ERROR:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
@@ -193,12 +191,10 @@ exports.unenrollUser = async (req, res) => {
       return res.status(400).json({ error: 'No se puede desinscribir de un evento pasado o que inicia hoy' });
     }
 
-    const enrollmentResult = await db.query('SELECT * FROM event_enrollments WHERE id_event=$1 AND id_user=$2', [eventId, userId]);
-    if (enrollmentResult.rows.length === 0) return res.status(400).json({ error: 'El usuario no está inscripto en el evento' });
+    const enrollmentResult = await db.query('DELETE FROM event_enrollments WHERE id_event=$1 AND id_user=$2 RETURNING *', [eventId, userId]);
+    if (enrollmentResult.rows.length === 0) return res.status(400).json({ error: 'El usuario no estaba inscripto en el evento' });
 
-    await db.query('DELETE FROM event_enrollments WHERE id_event=$1 AND id_user=$2', [eventId, userId]);
-
-    res.json({ message: 'Usuario desinscripto correctamente' });
+    res.json({ message: 'Usuario desinscripto correctamente', unenrolled: enrollmentResult.rows[0] });
   } catch (error) {
     console.error('UNENROLL USER ERROR:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
