@@ -5,8 +5,7 @@ const { body, validationResult } = require('express-validator');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const db = require('./src/config/config');
-const authRoutes = require('./src/routes/authRoutes');
-const eventRoutes = require('./src/routes/eventRoutes');
+
 
 // Inicializar app
 const app = express();
@@ -148,7 +147,7 @@ app.delete('/api/user/delete', authMiddleware, async (req, res) => {
     }
 
     // Eliminar las inscripciones del usuario en eventos (si hay alguna)
-    await db.query('DELETE FROM event_enrollments WHERE user_id = $1', [userId]);
+    await db.query('DELETE FROM event_enrollments WHERE id_user = $1', [userId]);
 
     // Eliminar el usuario de la tabla "users"
     await db.query('DELETE FROM users WHERE id = $1', [userId]);
