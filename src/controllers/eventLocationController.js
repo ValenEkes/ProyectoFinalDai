@@ -46,7 +46,12 @@ exports.getLocationById = async (req, res) => {
 exports.createLocation = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { nombre, direccion, capacidad_max } = req.body;
+    const { nombre, direccion, capacidad_max, id_locations, latitud, longitud } = req.body;
+
+    // AÑADE ESTA LÍNEA DE VALIDACIÓN
+    if (id_locations === undefined || id_locations === null) {
+      return res.status(400).json({ success: false, message: 'El campo id_locations es requerido' });
+    }
 
     // Validaciones de negocio
     if (!nombre || nombre.length < 3) {
@@ -60,8 +65,8 @@ exports.createLocation = async (req, res) => {
     }
 
     const result = await db.query(
-      'INSERT INTO event_locations (nombre, direccion, capacidad_max, id_creator_user) VALUES ($1, $2, $3, $4) RETURNING *',
-      [nombre, direccion, capacidad_max, userId]
+      'INSERT INTO event_locations (id_locations, nombre, direccion, capacidad_max, id_creator_user, latitud, longitud) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
+      [id_locations, nombre, direccion, capacidad_max, userId, latitud, longitud]
     );
 
     res.status(201).json({ success: true, data: result.rows[0] });
